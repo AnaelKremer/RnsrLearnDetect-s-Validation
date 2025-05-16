@@ -146,17 +146,16 @@ Au final on obtient des objets de ce type :
 
 Ici le code **7118** est bien présent dans l'adresse ainsi que le sigle de la structure **atilf**, on obtient donc dans ```result``` **"Code détecté & Sigle détecté"**
 
-> [!NOTE]
-> La clé ```result``` peut donc contenir 9 valeurs différentes :
-> Pas de code CNRS & Pas de sigle
-> Pas de code CNRS & Sigle détecté
-> Pas de code CNRS & Sigle non détecté
-> Code détecté & Pas de sigle
-> Code détecté & Sigle détecté
-> Code détecté & Sigle non détecté
-> Code non détecté & Pas de sigle
-> Code non détecté & Sigle détecté
-> Code non détecté & Sigle non détecté
+La clé ```result``` peut donc contenir 9 valeurs différentes :
+Pas de code CNRS & Pas de sigle
+Pas de code CNRS & Sigle détecté
+Pas de code CNRS & Sigle non détecté
+Code détecté & Pas de sigle
+Code détecté & Sigle détecté
+Code détecté & Sigle non détecté
+Code non détecté & Pas de sigle
+Code non détecté & Sigle détecté
+Code non détecté & Sigle non détecté
 
 > [!TIP]
 > Afin de traiter les résultats on peut ensuite filtrer ceux-ci. Par exemple si l'on souhaite faire une colonne avec uniquement les bons rnsr trouvés on peut générer un script du type :
