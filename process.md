@@ -23,7 +23,7 @@ On crée un enrichissement nommé ```loterreTransformed``` et dans le mode avanc
 [assign]
 path = value
 value = get("value.loterre") \
-  .map(item => typeof item === 'string' \
+  .map(item => typeof item === '' \
     ? { \
         codeRNSR:            'n/a', \
         codeUniteCNRS:       'n/a', \
@@ -62,19 +62,19 @@ On récupère ensuite les différentes valeurs dont on a besoin. On crée une cl
 On obtient donc un tableau avec des objets de ce type :
 ```
 {
-"codeRNSR":string"200212721Y"
-"codeUniteCNRS":string"UMR8171"
-"sigle":string"IMAf"
-"prefLabelFr":string"Institut des mondes africains"
-"tutellePrincipale":string"CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE, UNIVERSITE PANTHEON-SORBONNE, ECOLE DES HAUTES ÉTUDES EN SCIENCES SOCIALES, INSTITUT DE RECHERCHE POUR LE DEVELOPPEMENT, AIX-MARSEILLE UNIVERSITE"
-"tutelleSecondaire":string"ECOLE PRATIQUE DES HAUTES ETUDES"
-"institutPrincipal":string"Institut des sciences humaines et sociales"
-"institutSecondaire":string"Institut écologie et environnement"
+"codeRNSR":"200212721Y"
+"codeUniteCNRS":"UMR8171"
+"sigle":"IMAf"
+"prefLabelFr":"Institut des mondes africains"
+"tutellePrincipale":"CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE, UNIVERSITE PANTHEON-SORBONNE, ECOLE DES HAUTES ÉTUDES EN SCIENCES SOCIALES, INSTITUT DE RECHERCHE POUR LE DEVELOPPEMENT, AIX-MARSEILLE UNIVERSITE"
+"tutelleSecondaire":"ECOLE PRATIQUE DES HAUTES ETUDES"
+"institutPrincipal":"Institut des sciences humaines et sociales"
+"institutSecondaire":"Institut écologie et environnement"
 "isCNRS":booltrue
 }
 ```
 
-** 4ème étape : Vérification des rnsr
+## 4ème étape : Vérification des rnsr
 
 On crée un enrichissement nommé ```mergeAndDetectLoterreMatches``` et dans le mode avancé on colle ce script :
 
@@ -103,8 +103,67 @@ value = zip(self.value.adresses,self.value.rnsrLearnDetect2).map(([addr, rnsr]) 
 ```
 
 - Tout d'abord on associe chaque adresse au rnsr qui lui a été attribué par le web service avec ```zip(self.value.adresses,self.value.rnsrLearnDetect2)```
+  
 - Ensuite on crée une clé ```addr``` à laquelle on assigne l'adresse et une clé ```rnsr``` dans laquelle on met le rnsr.
+  
 - On zippe ensuite les objets contenus dans ```loterreTransformed```
-- On met en minuscule les valeurs de ```addr``` et de ```sigle```, on crée une clé ```sigleMatch``` qui sera remplie comme suit :
+  
+- On met en minuscule les valeurs de ```addr``` et de ```sigle```
+
+- On crée une clé ```sigleMatch``` qui sera remplie comme suit :
   - S'il n'y a pas de sigle, on avait reseigné "n/a" dans la clé ```sigle```. Dans ce cas on affecte la valeur ```Pas de sigle```
   - On vérifie si la valeur de ```sigle``` est contenue dans l'adresse ```addr```. Si c'est le cas on affecte ```Sigle détecté```, sinon ```Sigle non détecté```
+ 
+- On crée une clé ```codeNumber``` à laquelle on effecte la valeur de ```codeUniteCNRS``` mais on ne garde que les nombres, pour avoir par exemple "5270" au lieu de "UMR5270", les codes labos n'étant pas toujours écrits de la même façon dans les adresses.
+
+- On crée une clé ```codeMatch``` qui sera renseignée comme suit :
+  - Si ```isCnrs``` est false alors la structure ne peut logiquement pas avoir de code unité CNRS, on renseigne donc ```Pas de code CNRS```
+  - On vérifie si le code de ```codeNumber``` est présent dans l'adresse.  Si c'est le cas on affecte ```Code détecté```, sinon ```Code non détecté```
+ 
+- On crée enfin une dernière clé intitulée ```result``` qui concatène simplement les valeurs de ```codeMatch``` et ```sigleMatch```
+
+Au final on obtient des objets de ce type :
+
+```
+{
+"addr":"université de lorraine ul, umr7118, centre national de la recherche scientifique cnrs, analyse et traitement informatique de la langue française atilf, université de lorraine, 44 av de la libération, bp 30687 54063 nancy cedex, fr"
+"rnsr":"200112505T"
+"codeRNSR":"200112505T"
+"codeUniteCNRS":"UMR7118"
+"sigle":"atilf"
+"prefLabelFr":"Analyse et Traitement Informatique de la Langue Française"
+"tutellePrincipale":"UNIVERSITE DE LORRAINE, CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE"
+"tutelleSecondaire":"n/a"
+"institutPrincipal":"Institut des sciences humaines et sociales"
+"institutSecondaire":"Institut des Sciences de l'Information et de leurs Interactions"
+"isCNRS":booltrue
+"codeNumber":"7118"
+"codeMatch":"Code détecté"
+"sigleMatch":"Sigle détecté"
+"result":"Code détecté & Sigle détecté"
+}
+```
+
+Ici le code **7118** est bien présent dans l'adresse ainsi que le sigle de la structure **atilf**, on obtient donc dans ```result``` **"Code détecté & Sigle détecté"**
+
+> [!NOTE]
+> La clé ```result``` peut donc contenir 9 valeurs différentes :
+> Pas de code CNRS & Pas de sigle
+> Pas de code CNRS & Sigle détecté
+> Pas de code CNRS & Sigle non détecté
+> Code détecté & Pas de sigle
+> Code détecté & Sigle détecté
+> Code détecté & Sigle non détecté
+> Code non détecté & Pas de sigle
+> Code non détecté & Sigle détecté
+> Code non détecté & Sigle non détecté
+
+> [!TIP]
+> Afin de traiter les résultats on peut ensuite filtrer ceux-ci. Par exemple si l'on souhaite faire une colonne avec uniquement les bons rnsr trouvés on peut générer un script du type :
+> ```
+> [assign]
+> path = value
+> value = get("value.mergeAndDetectLoterreMatches").filter(obj=>obj.result==="Code détecté & Sigle détecté").map("addr")
+> ```
+>
+> On peut ensuite réaliser d'autres filtres pour traiter les adresses n'ayant pas été validées.
