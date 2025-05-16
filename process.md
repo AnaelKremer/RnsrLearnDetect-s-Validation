@@ -70,7 +70,7 @@ On obtient donc un tableau avec des objets de ce type :
 "tutelleSecondaire":"ECOLE PRATIQUE DES HAUTES ETUDES"
 "institutPrincipal":"Institut des sciences humaines et sociales"
 "institutSecondaire":"Institut écologie et environnement"
-"isCNRS":booltrue
+"isCNRS":true
 }
 ```
 
@@ -136,7 +136,7 @@ Au final on obtient des objets de ce type :
 "tutelleSecondaire":"n/a"
 "institutPrincipal":"Institut des sciences humaines et sociales"
 "institutSecondaire":"Institut des Sciences de l'Information et de leurs Interactions"
-"isCNRS":booltrue
+"isCNRS":true
 "codeNumber":"7118"
 "codeMatch":"Code détecté"
 "sigleMatch":"Sigle détecté"
