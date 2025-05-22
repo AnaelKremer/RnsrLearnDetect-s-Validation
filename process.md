@@ -9,9 +9,9 @@ Le document suivant permet, **dans Lodex**, d'effectuer des vérifications sur l
 
 Dans Lodex on crée un nouvel enrichissement appelé ```rnsrLearnDetect2```. On renseigne l'adresse du web service ```https://affiliation-rnsr.services.istex.fr/v2/affiliation/rnsr``` et on sélectionne la colonne contenant les adresses, ici appelée ```adresses```.
 
-## 2ème étape : Lancement du web service Loterre 2xk identify
+## 2ème étape : Lancement du web service Loterre 2xk expand
 
-On crée un nouvel enrichissement que l'on nomme ```loterre```, on choisit comme colonne de la source ```rnsrLearnDetect2``` puis on renseigne comme URL ```https://loterre-resolvers.services.istex.fr/v1/2XK/identify```.
+On crée un nouvel enrichissement que l'on nomme ```loterre```, on choisit comme colonne de la source ```rnsrLearnDetect2``` puis on renseigne comme URL ```https://loterre-resolvers.services.istex.fr/v1/2XK/expand```.
 
 Ce web service va, pour chaque rnsr trouvé par le précédent web service, renvoyer des informations sur la structure ayant le rnsr en question.
 
@@ -22,42 +22,58 @@ On crée un enrichissement nommé ```loterreTransformed``` et dans le mode avanc
 ```
 [assign]
 path = value
-value = get("value.loterre") \
-  .map(item => typeof item === '' \
+value = get('value.loterre').castArray()\
+  .map(item => typeof item === 'string' \
     ? { \
-        codeRNSR:            'n/a', \
-        codeUniteCNRS:       'n/a', \
-        sigle:               'n/a', \
-        prefLabelFr:         'n/a', \
-        tutellePrincipale:   'n/a', \
-        tutelleSecondaire:   'n/a', \
-        institutPrincipal:   'n/a', \
-        institutSecondaire:  'n/a', \
-        isCNRS:              false \
+        codeRNSR:            'Non trouvé', \
+        codeUniteCNRS:       'Non trouvé', \
+        sigle:               'Non trouvé', \
+        prefLabelFr:         'Non trouvé', \
+        altLabel:            ['Non trouvé'], \
+        tutellePrincipale:   ['Non trouvé'], \
+        tutelleSecondaire:   ['Non trouvé'], \
+        institutPrincipal:   ['Non trouvé'], \
+        institutSecondaire:  ['Non trouvé'], \
+        isCNRS:              'Non trouvé' \
       } \
-    : { \
-        codeRNSR:            _.get(item, 'codeRNSR[0]',      'n/a'), \
-        codeUniteCNRS:       _.get(item, 'codeUniteCNRS[0]', 'n/a'), \
-        sigle:               _.get(item, 'sigle.xml$t',      'n/a'), \
-        prefLabelFr:         _.get(item, 'prefLabel@fr',      'n/a'), \
-        tutellePrincipale:   (_.get(item, 'tutellePrincipale', []).join(', ')   || 'n/a'), \
-        tutelleSecondaire:   (_.get(item, 'tutelleSecondaire', []).join(', ')   || 'n/a'), \
-        institutPrincipal:   (_.get(item, 'institutPrincipal', []).join(', ')   || 'n/a'), \
-        institutSecondaire:  (_.get(item, 'institutSecondaire', []).join(', ') || 'n/a'), \
+    :  { \
+        codeRNSR:            _.chain(item.wdt$P3016).castArray().map('xml$t').pull('Non trouvé').uniq().toString().value(), \
+        codeUniteCNRS:       _.get(item, 'wdt$P4550.xml$t', 'Non CNRS'), \
+        sigle:               _.get(item, 'wdt$P1813.xml$t', 'Pas de Sigle'), \
+        prefLabelFr:         _.chain(item).get('skos$prefLabel').castArray().filter(obj => (obj.xml$lang === 'fr')).map('xml$t').toString().value(), \
+        altLabel:            _.chain(item) \
+                                .get('skos$altLabel').castArray().map('xml$t') \
+                                .xor([ \
+                                    _.get(item, 'wdt$P1813.xml$t', ''), \
+                                    _.get(item, 'wdt$P4550.xml$t', '') \
+                                ]) \
+                                .compact() \
+                            .value(), \
+        tutellePrincipale:   _.chain(item).get( 'inist$tutellePrincipale').castArray().map('xml$t').value(), \
+        tutelleSecondaire:   _.chain(item).get( 'inist$tutelleSecondaire').castArray().map('xml$t').value(), \
+        institutPrincipal:   _.chain(item).get( 'inist$institutPrincipal').castArray().map('xml$t').value(), \
+        institutSecondaire:  _.chain(item).get( 'inist$institutSecondaire').castArray().map('xml$t').value(), \
         isCNRS:              _.includes( \
-                               _.get(item, 'tutellePrincipale', []), \
+                               _.chain(item).get( 'inist$tutellePrincipale').castArray().map('xml$t').value(), \
                                'CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE' \
                              ) \
                              || _.includes( \
-                               _.get(item, 'tutelleSecondaire', []), \
+                               _.chain(item).get( 'inist$tutelleSecondaire').castArray().map('xml$t').value(), \
                                'CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE' \
-                             ) \
+                             ) ? 'CNRS' : 'Non CNRS'\
       } \
-  )
+  ).castArray()
 ```
 
-Ce script réalise différentes opérations. Tout d'abord lorsque le web service Loterre ne trouve pas d'informations il renvoie la chaîne **"n/a"**, dans les autres cas il renvoie des objets. Pour chaque chaîne **"n/a"** on va donc créer des objets auxquels on renseigne **"n/a"** afin que tous les résultats aient la même structure.
-On récupère ensuite les différentes valeurs dont on a besoin. On crée une clé ```isCnrs``` qui contiendra un booléen. On recherche si 'CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE' existe dans ```tutellePrincipale``` ou ```tutelleSecondaire```, si c'est le cas ```true``` sera assigné à ```isCnrs```, si ce n'est pas le cas ce sera ```false```.
+Ce script réalise différentes opérations. Tout d'abord lorsque le web service Loterre ne trouve pas d'informations il renvoie la chaîne **"n/a"**, dans les autres cas il renvoie des objets. Pour chaque chaîne **"n/a"** on va donc créer des objets auxquels on renseigne **"Non trouvé"**, sous forme de chaîne ou de tableau afin que tous les résultats aient la même structure.
+
+On récupère ensuite les différentes valeurs dont on a besoin, certaines nécessitent des traitements.
+
+ - ```codeRNSR``` peut apparaître sous forme de tableau de 2 éléments dont l'un est **"Non trouvé"** (donnée d'origine de Loterre, aucun rapport avec les "Non trouvé" du bloc précédent), le cas échéant on le retire pour ne garder que le RSNR.
+
+ - ```altLabel``` contient des autres codes ou noms de laboratoires, mais peut également contenir le sigle ou le codeUniteCNRS déjà présents dans les clés du même nom. Pour éviter de fausser les tests de l'étape 4, on retire ces valeurs si elles sont déjà présentes dans ```sigle``` et/ou dans ```codeUniteCNRS```.
+   
+ - ```isCnrs``` où l'on cherche si 'CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE' existe dans ```tutellePrincipale``` ou ```tutelleSecondaire```, si c'est le cas **CNRS** sera assigné, si non ce sera **Non CNRS**.
 
 On obtient donc un tableau avec des objets de ce type :
 ```
@@ -65,12 +81,13 @@ On obtient donc un tableau avec des objets de ce type :
 "codeRNSR":"200212721Y"
 "codeUniteCNRS":"UMR8171"
 "sigle":"IMAf"
+"altLabel":[]
 "prefLabelFr":"Institut des mondes africains"
 "tutellePrincipale":"CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE, UNIVERSITE PANTHEON-SORBONNE, ECOLE DES HAUTES ÉTUDES EN SCIENCES SOCIALES, INSTITUT DE RECHERCHE POUR LE DEVELOPPEMENT, AIX-MARSEILLE UNIVERSITE"
 "tutelleSecondaire":"ECOLE PRATIQUE DES HAUTES ETUDES"
 "institutPrincipal":"Institut des sciences humaines et sociales"
 "institutSecondaire":"Institut écologie et environnement"
-"isCNRS":true
+"isCNRS":"CNRS"
 }
 ```
 
@@ -81,40 +98,105 @@ On crée un enrichissement nommé ```mergeAndDetectLoterreMatches``` et dans le 
 ```
 [assign]
 path = value
-value = zip(self.value.adresses,self.value.rnsrLearnDetect2).map(([addr, rnsr]) => ({ addr, rnsr })).zip(self.value.loterreTransformed).map(([a, b]) =>_.assign({}, a, b))\
-    .map(item => _.assign({}, item, { \
-     addr: (item.addr || '').toLowerCase(), \
-    sigle: (item.sigle || '').toLowerCase(), \
-    codeNumber:   (item.codeUniteCNRS || '').replace(/\D+/g, '')})).map(item => _.assign({}, item, { \
-    codeMatch:  item.isCNRS === false                          \
-                  ? 'Pas de code CNRS'                             \
-                  : (item.addr && item.codeNumber              \
-                      && item.addr.includes(item.codeNumber)    \
-                      ? 'Code détecté'                                  \
-                      : 'Code non détecté'),                                 \
-    sigleMatch: item.sigle === 'n/a' \
-                  ? 'Pas de sigle' \
-                  : (item.addr && item.sigle && item.addr.includes(item.sigle) \
-                      ? 'Sigle détecté' \
-                      : 'Sigle non détecté') \
+value = zip(self.value.adressesconcatFrance, self.value.rnsrLearnDetect2) \
+  .map(([addr, rnsrDetect]) => ({ addr, rnsrDetect })) \
+  .zip(self.value.loterreTransformed) \
+  .map(([a, b]) => _.assign({}, a, b)) \
+  .map(item => _.assign({}, item, { \
+    addr:            _.chain(item.addr).toLower().deburr().value(), \
+    sigle:           _.chain(item.sigle).toLower().deburr().value(), \
+    codeNumber:      _.chain(item.codeUniteCNRS) \
+                       .thru(val => val === 'Non trouvé' || val === 'Non CNRS' ? val : val.replace(/\D+/g, '')) \
+                       .value(), \
+    prefLabelFr:     item.prefLabelFr, \
+    tutellePrincipale: item.tutellePrincipale \
   })) \
   .map(item => _.assign({}, item, { \
-    result:  item.codeMatch + ' & ' + item.sigleMatch}))
+    codeMatch:      item.codeNumber === 'Non CNRS' \
+                       ? null \
+                       : item.codeNumber === 'Non trouvé' \
+                         ? null \
+                         : (item.codeNumber && item.addr.includes(item.codeNumber) \
+                             ? 'Code CNRS détecté' \
+                             : null), \
+    sigleMatch:     item.sigle === null \
+                       ? 'Pas de sigle' \
+                       : (item.addr.includes(item.sigle) \
+                           ? 'Sigle détecté' \
+                           : null), \
+    prefLabelMatch: _.chain(item.prefLabelFr) \
+                       .toLower().deburr() \
+                       .thru(pref => pref && item.addr.includes(pref) ? 'Intitulé exact trouvé' : null) \
+                       .value(), \
+    altLabelMatch:  _.chain(item.altLabel) \
+                       .castArray() \
+                       .without('Non trouvé') \
+                       .map(val => /\d.*\d/.test(val) ? val.replace(/\D+/g, '') : val) \
+                       .uniq() \
+                       .filter(v => v && item.addr.includes(v)) \
+                       .value(), \
+    wordsMatch:     _.chain(item.prefLabelFr || '') \
+                       .toLower() \
+                       .deburr() \
+                       .words() \
+                       .filter(w => w.length >= 4 && w !== 'laboratoire' && w !== 'institut') \
+                       .filter(w => item.addr.includes(w)) \
+                       .value() \
+  })) \
+  .map(item => ({ \
+    result: item.rnsrDetect === 'n/a' \
+      ? 'RNSR non détecté' \
+      : (item.rnsrDetect !== 'n/a' && item.codeRNSR === 'Non trouvé') \
+        ? 'RNSR non répertorié dans Loterre' \
+        : _.chain([item.codeMatch, item.sigleMatch, item.prefLabelMatch]) \
+            .filter(v => v) \
+            .join(' & ') \
+            .thru(base => \
+              _.size(item.altLabelMatch) > 0 \
+                ? (_.size(base) > 0 \
+                    ? base + ' & ' + _.size(item.altLabelMatch) + ' altLabel(s) trouvé(s)' \
+                    : _.size(item.altLabelMatch) + ' altLabel(s) trouvé(s)') \
+                : (_.size(base) > 0 \
+                    ? base \
+                    : 'Aucun match') \
+            ) \
+            .thru(str => \
+              _.size(item.wordsMatch) > 0 \
+                ? (str === 'Aucun match' \
+                    ? _.size(item.wordsMatch) + ' mot(s) trouvé(s)' \
+                    : str + ' & ' + _.size(item.wordsMatch) + ' mot(s) trouvé(s)') \
+                : str \
+            ) \
+            .value(), \
+    addr:               item.addr, \
+    prefLabel:          item.prefLabelFr, \
+    sigle:              item.sigle, \
+    codeUniteCNRS:      item.codeUniteCNRS, \
+    altLabel:           item.altLabel, \
+    altLabelMatch:      item.altLabelMatch, \
+    wordsMatch:         item.wordsMatch, \
+    prefLabelMatch:     _.toString(item.prefLabelMatch), \
+    tutellePrincipale:  item.tutellePrincipale, \
+    tutelleSecondaire:  item.tutelleSecondaire, \
+    institutPrincipal:  item.institutPrincipal, \
+    institutSecondaire: item.institutSecondaire, \
+    isCNRS :            item.isCNRS \
+  }))
 ```
 
 - Tout d'abord on associe chaque adresse au rnsr qui lui a été attribué par le web service avec ```zip(self.value.adresses,self.value.rnsrLearnDetect2)```
   
-- Ensuite on crée une clé ```addr``` à laquelle on assigne l'adresse et une clé ```rnsr``` dans laquelle on met le rnsr.
+- Ensuite on crée une clé ```addr``` à laquelle on assigne l'adresse et une clé ```rnsrDetect``` dans laquelle on met le rnsr.
   
 - On zippe ensuite les objets contenus dans ```loterreTransformed```
   
 - On met en minuscule les valeurs de ```addr``` et de ```sigle```
 
+- On crée une clé ```codeNumber``` à laquelle on effecte la valeur de ```codeUniteCNRS```. Si la valeur est **Non trouvé** ou **Non CNRS**, on la garde. Sinon, on retire les caractères alphabétiques pour avoir par exemple "5270" au lieu de "UMR5270", les codes labos n'étant pas toujours écrits de la même façon dans les adresses.
+
 - On crée une clé ```sigleMatch``` qui sera remplie comme suit :
   - S'il n'y a pas de sigle, on avait reseigné "n/a" dans la clé ```sigle```. Dans ce cas on affecte la valeur ```Pas de sigle```
   - On vérifie si la valeur de ```sigle``` est contenue dans l'adresse ```addr```. Si c'est le cas on affecte ```Sigle détecté```, sinon ```Sigle non détecté```
- 
-- On crée une clé ```codeNumber``` à laquelle on effecte la valeur de ```codeUniteCNRS``` mais on ne garde que les nombres, pour avoir par exemple "5270" au lieu de "UMR5270", les codes labos n'étant pas toujours écrits de la même façon dans les adresses.
 
 - On crée une clé ```codeMatch``` qui sera renseignée comme suit :
   - Si ```isCnrs``` est false alors la structure ne peut logiquement pas avoir de code unité CNRS, on renseigne donc ```Pas de code CNRS```
