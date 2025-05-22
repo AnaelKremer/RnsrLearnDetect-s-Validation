@@ -6,6 +6,7 @@ Le document suivant permet, **dans Lodex**, d'effectuer des vérifications sur l
 
 > [!IMPORTANT]
 > Les adresses à interroger doivent être structurées sous forme de tableau. Si elles apparaissent en simple chaîne séparée par des ; par exemple , appliquer un ```.split(";")``` ou bien si elles sont structurées en matrice (un tableau contenant plusieurs tableaux), appliquez ```.flatten()``` pour obtenir un tableau simple.
+> 
 > Même si votre jeu de données n'a qu'une seule adresse par ligne, appliquez castArray() sur les adresses et aussi sur les rnsr détectés afin d'avoir des tableaux. Autrement, la fonction ```.zip()``` de l'étape 4 ne fonctionnera pas.
 
 Dans Lodex on crée un nouvel enrichissement appelé ```rnsrLearnDetect2```. On renseigne l'adresse du web service ```https://affiliation-rnsr.services.istex.fr/v2/affiliation/rnsr``` et on sélectionne la colonne contenant les adresses, ici appelée ```adresses```.
