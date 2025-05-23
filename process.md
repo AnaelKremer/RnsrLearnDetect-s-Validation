@@ -7,19 +7,19 @@ Le document suivant permet, **dans Lodex**, d'effectuer des vérifications sur l
 > [!IMPORTANT]
 > Les adresses à interroger doivent être structurées sous forme de tableau. Si elles apparaissent en simple chaîne séparée par des ; par exemple , appliquer un ```.split(";")``` ou bien si elles sont structurées en matrice (un tableau contenant plusieurs tableaux), appliquez ```.flatten()``` pour obtenir un tableau simple.
 > 
-> Même si votre jeu de données n'a qu'une seule adresse par ligne, appliquez castArray() sur les adresses et aussi sur les rnsr détectés afin d'avoir des tableaux. Autrement, la fonction ```.zip()``` de l'étape 4 ne fonctionnera pas.
+> Même si votre jeu de données n'a qu'une seule adresse par ligne, appliquez `````castArray()``` sur les adresses et aussi sur les rnsr détectés afin d'avoir des tableaux. Autrement, la fonction ```.zip()``` de l'étape 4 ne fonctionnera pas.
 
-Dans Lodex on crée un nouvel enrichissement appelé ```rnsrLearnDetect2```. On renseigne l'adresse du web service ```https://affiliation-rnsr.services.istex.fr/v2/affiliation/rnsr``` et on sélectionne la colonne contenant les adresses, ici appelée ```adresses```.
+Dans Lodex on crée un nouvel enrichissement appelé **rnsrLearnDetect2**. On renseigne l'adresse du web service ```https://affiliation-rnsr.services.istex.fr/v2/affiliation/rnsr``` et on sélectionne la colonne contenant les adresses, ici appelée **adresses**.
 
 ## 2ème étape : Lancement du web service Loterre 2xk expand
 
-On crée un nouvel enrichissement que l'on nomme ```loterre```, on choisit comme colonne de la source ```rnsrLearnDetect2``` puis on renseigne comme URL ```https://loterre-resolvers.services.istex.fr/v1/2XK/expand```.
+On crée un nouvel enrichissement que l'on nomme **loterre**, on choisit comme colonne de la source **rnsrLearnDetect2** puis on renseigne comme URL ```https://loterre-resolvers.services.istex.fr/v1/2XK/expand```.
 
 Ce web service va, pour chaque rnsr trouvé par le précédent web service, renvoyer des informations sur la structure ayant le rnsr en question.
 
 ## 3ème étape : Traitements et enrichissements des résultats obtenus par Loterre
 
-On crée un enrichissement nommé ```loterreTransformed``` et dans le mode avancé on colle ce script :
+On crée un enrichissement nommé **loterreTransformed** et dans le mode avancé on colle ce script :
 
 ```
 [assign]
@@ -95,14 +95,14 @@ On obtient donc un tableau avec des objets de ce type :
 
 ## 4ème étape : Vérification des rnsr
 
-On crée un enrichissement nommé ```mergeAndDetectLoterreMatches``` et dans le mode avancé on colle ce script :
+On crée un enrichissement nommé **mergeAndDetectLoterreMatches** et dans le mode avancé on colle ce script :
 
 ```
 [assign]
 path = value
 value = zip(self.value.adressesconcatFrance, self.value.rnsrLearnDetect2) \
   .map(([addr, rnsrDetect]) => ({ addr, rnsrDetect })) \
-  .zip(self.value.loterreExpandTransformed) \
+  .zip(self.value.loterreTransformed) \
   .map(([a, b]) => _.assign({}, a, b)) \
   .map(item => _.assign({}, item, { \
     addr:            _.chain(item.addr).toLower().deburr().value(), \
