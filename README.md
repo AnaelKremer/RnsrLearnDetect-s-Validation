@@ -26,4 +26,4 @@ On génère enfin des chaînes pour verbaliser de façon synthétique les multip
   - **x mot(s) trouvé(s)**
   - **x abréviation(s) trouvée(s)**
 
-Cela permet à minima, dans le cadre d'un travail d'identification des affiliations d'un corpus, de ne pas avoir à vérifier que tous les rnsr trouvés sont bien conformes aux affiliations.
+Cela permet à minima, dans le cadre d'un travail d'identification des affiliations d'un corpus, de ne pas avoir à vérifier que tous les rnsr trouvés sont bien conformes aux affiliations et de concentrer son attention sur les adresses n'ayant aucun match, ou très peu.
