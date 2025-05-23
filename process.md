@@ -102,7 +102,7 @@ On crée un enrichissement nommé ```mergeAndDetectLoterreMatches``` et dans le 
 path = value
 value = zip(self.value.adressesconcatFrance, self.value.rnsrLearnDetect2) \
   .map(([addr, rnsrDetect]) => ({ addr, rnsrDetect })) \
-  .zip(self.value.loterreTransformed) \
+  .zip(self.value.loterreExpandTransformed) \
   .map(([a, b]) => _.assign({}, a, b)) \
   .map(item => _.assign({}, item, { \
     addr:            _.chain(item.addr).toLower().deburr().value(), \
@@ -121,11 +121,9 @@ value = zip(self.value.adressesconcatFrance, self.value.rnsrLearnDetect2) \
                          : (item.codeNumber && item.addr.includes(item.codeNumber) \
                              ? 'Code CNRS détecté' \
                              : null), \
-    sigleMatch:     item.sigle === null \
-                       ? 'Pas de sigle' \
-                       : (item.addr.includes(item.sigle) \
+    sigleMatch:     item.addr.includes(item.sigle) \
                            ? 'Sigle détecté' \
-                           : null), \
+                           : null, \
     prefLabelMatch: _.chain(item.prefLabelFr) \
                        .toLower().deburr() \
                        .thru(pref => pref && item.addr.includes(pref) ? 'Intitulé exact trouvé' : null) \
@@ -196,13 +194,11 @@ value = zip(self.value.adressesconcatFrance, self.value.rnsrLearnDetect2) \
 
 - On crée une clé ```codeNumber``` à laquelle on effecte la valeur de ```codeUniteCNRS```. Si la valeur est **Non trouvé** ou **Non CNRS**, on la garde. Sinon, on retire les caractères alphabétiques pour avoir par exemple "5270" au lieu de "UMR5270", les codes labos n'étant pas toujours écrits de la même façon dans les adresses.
 
-- On crée une clé ```sigleMatch``` qui sera remplie comme suit :
-  - S'il n'y a pas de sigle, on avait reseigné "n/a" dans la clé ```sigle```. Dans ce cas on affecte la valeur ```Pas de sigle```
-  - On vérifie si la valeur de ```sigle``` est contenue dans l'adresse ```addr```. Si c'est le cas on affecte ```Sigle détecté```, sinon ```Sigle non détecté```
+- On crée une clé ```sigleMatch``` qui vérifie si la valeur de ```sigle``` est contenue dans l'adresse ```addr```. Si c'est le cas on affecte **Sigle détecté**, sinon **null**.
 
 - On crée une clé ```codeMatch``` qui sera renseignée comme suit :
-  - Si ```isCnrs``` est false alors la structure ne peut logiquement pas avoir de code unité CNRS, on renseigne donc ```Pas de code CNRS```
-  - On vérifie si le code de ```codeNumber``` est présent dans l'adresse.  Si c'est le cas on affecte ```Code détecté```, sinon ```Code non détecté```
+  - Si la valeur de ```codeNumber``` est **Non CNRS** ou **Non trouvé** on renvoie **null**.
+  - Sinon, si le code de ```codeNumber``` est présent dans l'adresse on renvoie **Code CNRS détecté**.
  
 - On crée enfin une dernière clé intitulée ```result``` qui concatène simplement les valeurs de ```codeMatch``` et ```sigleMatch```
 
