@@ -135,13 +135,21 @@ value = zip(self.value.adressesconcatFrance, self.value.rnsrLearnDetect2) \
                        .uniq() \
                        .filter(v => v && item.addr.includes(v)) \
                        .value(), \
-    wordsMatch:     _.chain(item.prefLabelFr || '') \
+    wordsMatch:     _.chain(item.prefLabelFr) \
                        .toLower() \
                        .deburr() \
                        .words() \
                        .filter(w => w.length >= 4 && w !== 'laboratoire' && w !== 'institut') \
                        .filter(w => item.addr.includes(w)) \
-                       .value() \
+                       .value(), \
+    trimMatch:      _.chain(item.prefLabelFr) \
+                        .toLower() \
+                        .deburr() \
+                        .words() \
+                        .filter(w => w.length >= 4 && w !== 'laboratoire' && w !== 'institut') \
+                        .map(w => _.trim(w.slice(0, 3))) \
+                        .filter(abr => item.addr.includes(abr)) \
+                        .value() \
   })) \
   .map(item => ({ \
     result: item.rnsrDetect === 'n/a' \
@@ -151,22 +159,26 @@ value = zip(self.value.adressesconcatFrance, self.value.rnsrLearnDetect2) \
         : _.chain([item.codeMatch, item.sigleMatch, item.prefLabelMatch]) \
             .filter(v => v) \
             .join(' & ') \
-            .thru(base => \
+            .thru(result => \
               _.size(item.altLabelMatch) > 0 \
-                ? (_.size(base) > 0 \
-                    ? base + ' & ' + _.size(item.altLabelMatch) + ' altLabel(s) trouvé(s)' \
+                ? (_.size(result) > 0 \
+                    ? result + ' & ' + _.size(item.altLabelMatch) + ' altLabel(s) trouvé(s)' \
                     : _.size(item.altLabelMatch) + ' altLabel(s) trouvé(s)') \
-                : (_.size(base) > 0 \
-                    ? base \
+                : (_.size(result) > 0 \
+                    ? result \
                     : 'Aucun match') \
             ) \
-            .thru(str => \
+            .thru(result => \
               _.size(item.wordsMatch) > 0 \
-                ? (str === 'Aucun match' \
+                ? (result === 'Aucun match' \
                     ? _.size(item.wordsMatch) + ' mot(s) trouvé(s)' \
-                    : str + ' & ' + _.size(item.wordsMatch) + ' mot(s) trouvé(s)') \
-                : str \
-            ) \
+                    : result + ' & ' + _.size(item.wordsMatch) + ' mot(s) trouvé(s)') \
+                : result) \
+            .thru(result=>_.size(item.trimMatch)>0 \
+              ? (result==='Aucun match' \
+                  ? _.size(item.trimMatch)+' abréviation(s) trouvée(s)' \
+                  : result+' & '+_.size(item.trimMatch)+' abréviation(s) trouvée(s)') \
+              : result) \
             .value(), \
     addr:               item.addr, \
     prefLabel:          item.prefLabelFr, \
@@ -175,11 +187,12 @@ value = zip(self.value.adressesconcatFrance, self.value.rnsrLearnDetect2) \
     altLabel:           item.altLabel, \
     altLabelMatch:      item.altLabelMatch, \
     wordsMatch:         item.wordsMatch, \
+    trimMatch:          item.trimMatch, \
     prefLabelMatch:     _.toString(item.prefLabelMatch), \
-    tutellePrincipale:  item.tutellePrincipale, \
-    tutelleSecondaire:  item.tutelleSecondaire, \
-    institutPrincipal:  item.institutPrincipal, \
-    institutSecondaire: item.institutSecondaire, \
+    tutellePrincipale:  _.compact(item.tutellePrincipale), \
+    tutelleSecondaire:  _.compact(item.tutelleSecondaire), \
+    institutPrincipal:  _.compact(item.institutPrincipal), \
+    institutSecondaire: _.compact(item.institutSecondaire), \
     isCNRS :            item.isCNRS \
   }))
 ```
@@ -198,51 +211,51 @@ value = zip(self.value.adressesconcatFrance, self.value.rnsrLearnDetect2) \
 
 - On crée une clé ```codeMatch``` qui sera renseignée comme suit :
   - Si la valeur de ```codeNumber``` est **Non CNRS** ou **Non trouvé** on renvoie **null**.
-  - Sinon, si le code de ```codeNumber``` est présent dans l'adresse on renvoie **Code CNRS détecté**.
- 
-- On crée enfin une dernière clé intitulée ```result``` qui concatène simplement les valeurs de ```codeMatch``` et ```sigleMatch```
+  - Sinon, si le code de ```codeNumber``` est présent dans l'adresse on renvoie **Code CNRS détecté** sinon **null**.
 
-Au final on obtient des objets de ce type :
+- On crée une clé ```prefLabelMatch``` où l'on prend l'intitulé de la structure, que l'on normalise, puis on cherche si la chaîne exacte est dans ```addr```. Si c'est le cas on renvoie **Intitulé exact trouvé** sinon **null**
+ 
+- On crée une clé ```altLabelMatch``` dans laquelle on met les appellations alternatives. On retire **Non trouvé** s'il était présent, on capture toutes les valeurs qui contiennent au moins 2 nombres et pour lesquelles on enlève les caractères alphabétiques (le sigle **L2C** est conservé, mais **UMR5221** devient **5221**). On dédoublonne puis on teste si chaque élément du tableau est inclus dans ```addr```, on renvoie dans un tableau les éléments qui apparaissent effectivement dans l'adresse.
+
+- On crée une clé ```wordsMatch``` où l'on prend l'intitulé de la structure, que l'on normalise, puis découpe en mots. On retire ensuite tous les mots de moins de 4 caractères de sorte à enlever les mots vides, on retire également **laboratoire** et **institut** qui sont trop génériques et créeront des faux positifs. On vérifie enfin si chaque mot est inclus dans ```addr``` et renvoie un tableau avec les mots trouvés.
+
+- On crée enfin une dernière clé intitulée ```trimMatch``` qui réalise les mêmes transformations de ```wordsMatch```, mais ici on va abréger chaque mot à ses 3 premiers caractères avant de chercher leur présence dans l'adresse. Cela permet par exemple pour l'adresse **univ toulouse, umr evol & divers biol, cnrs, france** et d'après le prefLabel **Évolution et Diversité Biologique** de renvoyer un tableau de 3 bonnes réponses : **["evo","div","bio"]**.
+
+
+- On génère ensuite un nouvel objet où l'on restitue tous les résultats ainsi que les informations de Loterre. On crée une nouvelle clé intitulée ```result``` dans laquelle on va verbaliser et synthétiser les résultats.
+  
+  - Si ```rnsrDetect``` contient **n/a**, cela signifie que le web service n'avait pas trouvé de RNSR, on renvoie donc **RNSR non détecté**
+  - Si ```rnsrDetect``` ne contient pas **n/a** (donc contient un RNSR) et que ```codeRNSR``` contient **Non trouvé**, cela signifie que le RNSR détécté n'a pas été retrouvé dans Loterre, c'est le cas pour d'anciennes adresses associées à des laboratoires fermés par exemple. Dans ce cas on renvoie **RNSR non répertorié dans Loterre**.
+  - Ensuite on génère un tableau contenant les réponses de ```codeMatch```, ```sigleMatch``` et ```prefLabelMatch```, on retire les **null* donc les résultats négatifs, et on joint les valeurs. Ce qui donne par exemple **"Code CNRS détecté & Sigle détécté"**.
+    - On post-traite ensuite cette chaîne, on calcule en parallèle combien de réponses contient ```altLabelMatch```. S'il y a au moins une réponse, on capture le nombre, lui ajoute la chaîne **altLabel(s) trouvé(s)** et on insère cette chaîne dans la chaîne de ```result```. Cela donne par exemple **Sigle trouvé & 1 altLabel(s) trouvé(s)**. Si le tableau ```altLabelMatch``` est vide et que la chaîne ```result``` est vide également, on n'a trouvé aucun résultat, on renvoie alors **Aucun match**.
+    - On post-traite maintenant cette chaîne de la même façon avec ```wordsMatch```. Si ```result``` contient **Aucun match** mais que le tableau contient des mots, on renvoie **x mot(s) trouvé(s)**; si ```result``` contient autre chose et que le tableau contient des mots, on ajoute ** & x mot(s) trouvé(s)**; enfin si ```result``` contient **Aucun match** et que la tableau est vide, on conserve **Aucun match**.
+    - Enfin on post-traite la chaîne obtenue de la même façon en traitant maintenant ```trimMatch``` en plus. Si ```result``` contient **Aucun match** mais que le tableau contient des abréviations, on renvoie **x abréviation(s) trouvée(s)**; si ```result``` contient autre chose et que le tableau contient des abréviations, on ajoute ** & x abréviation(s) trouvée(s)**; enfin si ```result``` contient **Aucun match** et que la tableau est vide, on conserve **Aucun match**.
+
+
+A l'issue de tous ces traitements on obtient des objets de ce type :
 
 ```
 {
-"addr":"université de lorraine ul, umr7118, centre national de la recherche scientifique cnrs, analyse et traitement informatique de la langue française atilf, université de lorraine, 44 av de la libération, bp 30687 54063 nancy cedex, fr"
-"rnsr":"200112505T"
-"codeRNSR":"200112505T"
-"codeUniteCNRS":"UMR7118"
-"sigle":"atilf"
-"prefLabelFr":"Analyse et Traitement Informatique de la Langue Française"
-"tutellePrincipale":"UNIVERSITE DE LORRAINE, CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE"
-"tutelleSecondaire":"n/a"
-"institutPrincipal":"Institut des sciences humaines et sociales"
-"institutSecondaire":"Institut des Sciences de l'Information et de leurs Interactions"
-"isCNRS":true
-"codeNumber":"7118"
-"codeMatch":"Code détecté"
-"sigleMatch":"Sigle détecté"
-"result":"Code détecté & Sigle détecté"
+"result":"Code CNRS détecté & 3 abréviation(s) trouvée(s)"
+"addr":"univ toulouse 3, umr evolut & divers biol 5174, f-31062 toulouse, france"
+"prefLabel":"Évolution et Diversité Biologique"
+"sigle":"edb"
+"codeUniteCNRS":"UMR5174"
+"altLabel":[]
+"altLabelMatch":[]
+"wordsMatch":[]
+"trimMatch":[
+  "evo",
+  "div",
+  "bio"]
+"prefLabelMatch":""
+"tutellePrincipale":[
+  "UNIVERSITE TOULOUSE - PAUL SABATIER",
+  "CENTRE NATIONAL DE LA RECHERCHE SCIENTIFIQUE",
+  "INSTITUT DE RECHERCHE POUR LE DEVELOPPEMENT"]
+"tutelleSecondaire":[]
+"institutPrincipal":["Institut écologie et environnement"]
+"institutSecondaire":["Institut des sciences biologiques"]
+"isCNRS":"CNRS"
 }
 ```
-
-Ici le code **7118** est bien présent dans l'adresse ainsi que le sigle de la structure **atilf**, on obtient donc dans ```result``` **"Code détecté & Sigle détecté"**
-
-La clé ```result``` peut donc contenir 9 valeurs différentes :
-+ Pas de code CNRS & Pas de sigle
-+ Pas de code CNRS & Sigle détecté
-+ Pas de code CNRS & Sigle non détecté
-+ Code détecté & Pas de sigle
-+ Code détecté & Sigle détecté
-+ Code détecté & Sigle non détecté
-+ Code non détecté & Pas de sigle
-+ Code non détecté & Sigle détecté
-+ Code non détecté & Sigle non détecté
-
-> [!TIP]
-> Afin de traiter les résultats on peut ensuite filtrer ceux-ci. Par exemple si l'on souhaite faire une colonne avec uniquement les bons rnsr trouvés on peut générer un script du type :
-> ```
-> [assign]
-> path = value
-> value = get("value.mergeAndDetectLoterreMatches").filter(obj=>obj.result==="Code détecté & Sigle détecté").map("addr")
-> ```
->
-> On peut ensuite réaliser d'autres filtres pour traiter les adresses n'ayant pas été validées.
